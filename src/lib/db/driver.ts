@@ -92,46 +92,50 @@ function toPg(text: string): string {
   return text.replace(/\?/g, () => `$${++i}`);
 }
 
-/** neon() 运行时提供 .query()/.transaction()，但类型未暴露；此处按运行时行为声明。 */
-interface NeonQueryable {
-  query(text: string, params?: unknown[], opts?: { fullResults?: boolean }): Promise<unknown>;
-  transaction(
-    queries: unknown[],
-    opts?: { fullResults?: boolean }
-  ): Promise<unknown>;
+/**
+ * @neondatabase/serverless 的 neon() 返回一个可调用对象：
+ *   sql(text, params, opts)         —— 参数化查询（非模板用法）
+ *   sql.transaction([sql(...), ...]) —— 一组查询原子执行
+ * 该版本不提供 .query() 方法；用 fullResults 拿到 { rows, rowCount }。
+ */
+interface NeonFullResult {
+  rows: unknown[];
+  rowCount: number;
+}
+type NeonQuery = Promise<unknown> & { rows?: unknown[]; rowCount?: number };
+interface NeonSql {
+  (text: string, params?: unknown[], opts?: { fullResults?: boolean; arrayMode?: boolean }): NeonQuery;
+  transaction(queries: NeonQuery[], opts?: { fullResults?: boolean }): Promise<NeonFullResult[]>;
 }
 
 async function createNeonLow(url: string): Promise<LowDb> {
   const { neon } = await import("@neondatabase/serverless");
-  const sql = neon(url) as unknown as NeonQueryable;
+  const sql = neon(url) as unknown as NeonSql;
 
   return {
     kind: "neon",
     async init() {
       const { SCHEMA_NEON_STMTS } = await import("./schema");
       for (const stmt of SCHEMA_NEON_STMTS) {
-        await sql.query(stmt);
+        await sql(stmt, []);
       }
     },
     async all<T>(text: string, params: unknown[] = []) {
-      const rows = (await sql.query(toPg(text), params as unknown[])) as unknown[];
-      return rows as T[];
+      const res = (await sql(toPg(text), params, { fullResults: true })) as unknown as NeonFullResult;
+      return (res.rows ?? []) as T[];
     },
     async get<T>(text: string, params: unknown[] = []) {
-      const rows = (await sql.query(toPg(text), params as unknown[])) as unknown[];
-      return ((rows[0] as T) ?? null) as T | null;
+      const res = (await sql(toPg(text), params, { fullResults: true })) as unknown as NeonFullResult;
+      return (((res.rows ?? [])[0] as T) ?? null) as T | null;
     },
     async run(text: string, params: unknown[] = []) {
-      const res = (await sql.query(toPg(text), params as unknown[], {
-        fullResults: true,
-      })) as { rowCount: number };
+      const res = (await sql(toPg(text), params, { fullResults: true })) as unknown as NeonFullResult;
       return res.rowCount ?? 0;
     },
     async tx(stmts: Stmt[]) {
-      const queries = stmts.map((s) => sql.query(toPg(s.text), (s.params ?? []) as unknown[]));
-      const results = (await sql.transaction(queries, {
-        fullResults: true,
-      })) as { rowCount: number }[];
+      // 构造未 await 的查询对象数组交给 transaction 原子执行
+      const queries = stmts.map((s) => sql(toPg(s.text), s.params ?? [], { fullResults: true }));
+      const results = await sql.transaction(queries, { fullResults: true });
       return results.map((r) => r?.rowCount ?? 0);
     },
   };

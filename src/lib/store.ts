@@ -110,7 +110,7 @@ export async function getUserRoles(store: Store, id: string): Promise<string[]> 
     "SELECT roles, active FROM users WHERE id = ?",
     [id]
   );
-  if (!r || r.active === 0) return [];
+  if (!r || Number(r.active) === 0) return [];
   return r.roles.split(",").map((s) => s.trim());
 }
 

@@ -37,7 +37,7 @@ export async function ensureSeed(store: Store): Promise<void> {
 
   // 用户
   const uCount = await store.get<{ n: number }>("SELECT COUNT(*) AS n FROM users");
-  if (!uCount || uCount.n === 0) {
+  if (!uCount || Number(uCount.n) === 0) {
     for (const u of DEFAULT_USERS) {
       await store.run(
         "INSERT INTO users (id, name, roles, warehouse, active, created_at) VALUES (?,?,?,?,?,?)",
@@ -48,7 +48,7 @@ export async function ensureSeed(store: Store): Promise<void> {
 
   // 品控规则
   const rCount = await store.get<{ n: number }>("SELECT COUNT(*) AS n FROM qc_rules");
-  if (!rCount || rCount.n === 0) {
+  if (!rCount || Number(rCount.n) === 0) {
     for (const r of defaultQcRules()) {
       await insertQcRule(store, {
         subType: r.subType,
