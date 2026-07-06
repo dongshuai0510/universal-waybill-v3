@@ -46,9 +46,12 @@ export async function lowDb(): Promise<LowDb> {
 async function createSqliteLow(): Promise<LowDb> {
   const { mkdirSync } = await import("node:fs");
   const { join } = await import("node:path");
+  const os = await import("node:os");
   const Database = (await import("better-sqlite3")).default;
-  mkdirSync(join(process.cwd(), "data"), { recursive: true });
-  const db = new Database(join(process.cwd(), "data", "v3.db"));
+  // Vercel serverless 文件系统只读，仅 /tmp 可写；本地开发用 ./data。
+  const baseDir = process.env.VERCEL ? join(os.tmpdir(), "v3-data") : join(process.cwd(), "data");
+  mkdirSync(baseDir, { recursive: true });
+  const db = new Database(join(baseDir, "v3.db"));
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
 
