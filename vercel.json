@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "functions": {
+    "src/app/api/scan/route.ts": { "maxDuration": 30 },
+    "src/app/api/tickets/[id]/approve/route.ts": { "maxDuration": 30 },
+    "src/app/api/tickets/[id]/execute/route.ts": { "maxDuration": 30 },
+    "src/app/api/seed/route.ts": { "maxDuration": 60 },
+    "src/app/api/cron/sweep/route.ts": { "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/cron/sweep", "schedule": "*/10 * * * *" }
+  ]
+}
